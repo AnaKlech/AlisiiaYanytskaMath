@@ -50,6 +50,11 @@
     line-height: 1.08; margin: 0 0 10px;
   }
   .hero p.sub{ font-size: 15px; color: rgba(250,246,238,0.72); max-width: 520px; margin: 0 auto; line-height: 1.5; }
+  .paper-reminder{
+    margin: 16px auto 0; max-width: 480px; font-size: 13px; font-weight: 600;
+    color: var(--ink-deep); background: var(--gold); border-radius: 999px;
+    padding: 10px 20px; display: inline-block;
+  }
 
   .route-wrap{
     background: rgba(250,246,238,0.05); border: 1px solid rgba(250,246,238,0.12);
@@ -156,7 +161,6 @@
     color: var(--teal-deep); display: flex; align-items: center; gap: 8px;
   }
 
-  .reference-btn-wrap{ margin: 20px 30px 0; display: flex; justify-content: flex-start; }
 
   .theory-box{
     margin: 18px 30px 0; background: var(--paper-dim); border-left: 4px solid var(--teal);
@@ -184,21 +188,50 @@
   }
   .modal-overlay.show{ display:flex; }
   .modal-box{
-    background: var(--paper); border-radius: var(--radius); max-width: 560px; width: 100%;
+    background: var(--paper); border-radius: var(--radius); max-width: 480px; width: 100%;
     max-height: 80vh; overflow-y: auto; padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);
   }
   .modal-box h4{
     font-family:'JetBrains Mono', monospace; font-size: 12px; text-transform: uppercase;
-    letter-spacing: 0.1em; color: var(--gold); margin: 0 0 6px;
+    letter-spacing: 0.1em; color: var(--coral-deep); margin: 0 0 6px;
   }
   .modal-box h3{ font-family: 'Fraunces', serif; font-size: 22px; margin: 0 0 14px; color: var(--ink); }
   .modal-box .body{ font-size: 15px; line-height: 1.65; color: var(--ink); }
   .modal-box .body p{ margin: 0 0 10px; }
-  .modal-box .formula{
+  .modal-close-row{ margin-top: 18px; display:flex; justify-content: flex-end; gap: 10px; }
+  .btn-coral{ background: var(--coral); color: white; border-color: var(--coral-deep); }
+  .btn-coral:hover{ box-shadow: 0 6px 16px rgba(232,112,74,0.35); }
+
+  .reset-row{ text-align: center; margin-top: 14px; }
+  .reset-link{
+    background: none; border: none; color: rgba(250,246,238,0.55); font-size: 12px;
+    text-decoration: underline; cursor: pointer; font-family: 'Inter', sans-serif;
+  }
+  .reset-link:hover{ color: rgba(250,246,238,0.85); }
+
+  .reference-accordion{ margin: 20px 30px 0; border: 1.5px solid var(--gold); border-radius: var(--radius-sm); overflow: hidden; }
+  .reference-toggle{
+    width: 100%; display:flex; align-items:center; gap: 10px; padding: 14px 18px;
+    background: rgba(212,162,60,0.14); border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; color: #8a6620;
+    text-align: left;
+  }
+  .reference-toggle:hover{ background: rgba(212,162,60,0.22); }
+  .ref-toggle-text{ flex: 1; }
+  .ref-toggle-chevron{ transition: transform 0.2s; font-size: 16px; }
+  .reference-toggle[aria-expanded="true"] .ref-toggle-chevron{ transform: rotate(180deg); }
+  .reference-panel{
+    max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
+    background: white;
+  }
+  .reference-panel.open{ max-height: 1200px; }
+  .reference-panel .body{ padding: 18px 22px; font-size: 15px; line-height: 1.65; color: var(--ink); }
+  .reference-panel .body p{ margin: 0 0 10px; }
+  .reference-panel .body p:last-child{ margin-bottom: 0; }
+  .reference-panel .formula{
     font-family:'JetBrains Mono', monospace; background: rgba(27,42,74,0.06);
     padding: 2px 8px; border-radius: 6px; font-weight: 600;
   }
-  .modal-close-row{ margin-top: 18px; display:flex; justify-content: flex-end; }
 
   .quiz-progress-bar{ display:flex; gap: 6px; margin: 22px 30px 0; }
   .quiz-progress-bar .seg{ height: 6px; flex:1; border-radius: 4px; background: var(--line); }
@@ -245,7 +278,7 @@
 
   @keyframes slideIn{ from{ opacity:0; transform: translateY(-6px); } to{ opacity:1; transform: translateY(0); } }
 
-  .q-footer{ display:flex; justify-content: flex-end; margin-top: 22px; }
+  .q-footer{ display:flex; justify-content: space-between; align-items: center; margin-top: 22px; gap: 12px; }
 
   .topic-complete-screen{ padding: 50px 30px; text-align:center; }
   .topic-complete-screen .badge{
@@ -281,7 +314,7 @@
     .route-label{ display:none; }
     .day-head{ flex-direction: column; }
     .question-card, .theory-box, .lesson-head, .review-question-block{ padding-left: 18px; padding-right: 18px; }
-    .theory-box, .reference-btn-wrap, .quiz-progress-bar{ margin-left: 18px; margin-right: 18px; }
+    .theory-box, .reference-accordion, .quiz-progress-bar{ margin-left: 18px; margin-right: 18px; }
   }
 </style>
 </head>
@@ -292,12 +325,17 @@
     <div class="eyebrow">Підготовка до контрольної</div>
     <h1>Математична експедиція</h1>
     <p class="sub">П'ять зупинок до впевненого тесту. Кожна тема — коротка теорія і кілька завдань. Щоб рухатись далі, потрібно розв'язати все правильно.</p>
+    <div class="paper-reminder">✏️ Для практики знадобиться листок і ручка — обчислення краще робити самостійно, а не в голові</div>
   </div>
 
   <div class="route-wrap">
     <div class="route" id="routeMap">
       <div class="route-line"></div>
     </div>
+  </div>
+
+  <div class="reset-row">
+    <button class="reset-link" id="resetProgressBtn" type="button">Очистити весь прогрес</button>
   </div>
 
   <div class="day-card" id="dayCard" style="display:none;">
@@ -321,8 +359,15 @@
       </div>
     </div>
 
-    <div class="reference-btn-wrap" id="referenceBtnWrap">
-      <button class="btn btn-ghost" id="openReferenceBtn">📖 Довідник: базові поняття</button>
+    <div class="reference-accordion" id="referenceAccordion">
+      <button class="reference-toggle" id="referenceToggle" type="button" aria-expanded="false">
+        <span class="ref-toggle-icon">📖</span>
+        <span class="ref-toggle-text">Довідник: базові поняття</span>
+        <span class="ref-toggle-chevron" id="refChevron">▾</span>
+      </button>
+      <div class="reference-panel" id="referencePanel">
+        <div class="body" id="referencePanelBody"></div>
+      </div>
     </div>
 
     <div class="theory-box" id="theoryBox">
@@ -338,13 +383,16 @@
 
 </div>
 
-<div class="modal-overlay" id="referenceModal">
+<div class="modal-overlay" id="resetConfirmModal">
   <div class="modal-box">
-    <h4>Довідник</h4>
-    <h3 id="referenceModalTitle">Базові поняття</h3>
-    <div class="body" id="referenceModalBody"></div>
+    <h4>Увага</h4>
+    <h3>Очистити весь прогрес?</h3>
+    <div class="body">
+      <p>Усі позначки про завершені теми та відповіді буде видалено. Дитина почне урок із самого початку, з Дня 1. Цю дію неможливо скасувати.</p>
+    </div>
     <div class="modal-close-row">
-      <button class="btn btn-primary" id="closeReferenceBtn">Зрозуміло</button>
+      <button class="btn btn-ghost" id="cancelResetBtn">Скасувати</button>
+      <button class="btn btn-coral" id="confirmResetBtn">Так, очистити</button>
     </div>
   </div>
 </div>
