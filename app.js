@@ -1,5 +1,5 @@
 // ============================================================
-// ЛОГІКА ЗАСТОСУНКУ v2
+// ЛОГІКА ЗАСТОСУНКУ v3
 // ============================================================
 
 const STATE = {
@@ -7,6 +7,7 @@ const STATE = {
   currentTopicId: null,
   currentQuestionIndex: 0,
   progress: {}, // { topicId: true } коли тема завершена
+  answeredCorrectly: {}, // { "topicId:qIdx": true } — чи вже відповіла правильно на це питання у поточній спробі (для кнопки "Назад")
 };
 
 const els = {
@@ -20,17 +21,19 @@ const els = {
   lessonTag: document.getElementById("lessonTag"),
   lessonTitle: document.getElementById("lessonTitle"),
   reviewBanner: document.getElementById("reviewBanner"),
-  referenceBtnWrap: document.getElementById("referenceBtnWrap"),
-  openReferenceBtn: document.getElementById("openReferenceBtn"),
+  referenceToggle: document.getElementById("referenceToggle"),
+  referencePanel: document.getElementById("referencePanel"),
+  referencePanelBody: document.getElementById("referencePanelBody"),
+  refChevron: document.getElementById("refChevron"),
   theoryBody: document.getElementById("theoryBody"),
   quizProgressBar: document.getElementById("quizProgressBar"),
   questionCard: document.getElementById("questionCard"),
   reviewContainer: document.getElementById("reviewContainer"),
   backToDay: document.getElementById("backToDay"),
-  referenceModal: document.getElementById("referenceModal"),
-  referenceModalTitle: document.getElementById("referenceModalTitle"),
-  referenceModalBody: document.getElementById("referenceModalBody"),
-  closeReferenceBtn: document.getElementById("closeReferenceBtn"),
+  resetProgressBtn: document.getElementById("resetProgressBtn"),
+  resetConfirmModal: document.getElementById("resetConfirmModal"),
+  cancelResetBtn: document.getElementById("cancelResetBtn"),
+  confirmResetBtn: document.getElementById("confirmResetBtn"),
 };
 
 // ---------- ХЕЛПЕРИ ----------
@@ -71,6 +74,11 @@ function loadProgress(){
     const raw = localStorage.getItem("mathExpeditionProgress");
     if(raw) STATE.progress = JSON.parse(raw);
   }catch(e){ /* ignore */ }
+}
+function clearProgress(){
+  STATE.progress = {};
+  STATE.answeredCorrectly = {};
+  try{ localStorage.removeItem("mathExpeditionProgress"); }catch(e){ /* ignore */ }
 }
 
 // ---------- РЕНДЕР: КАРТА МАРШРУТУ ----------
@@ -145,18 +153,17 @@ function openDay(dayIdx){
   renderRouteMap();
 }
 
-// ---------- РЕФЕРЕНС МОДАЛКА (Довідник) ----------
-function openReferenceModal(topic){
-  els.referenceModalTitle.textContent = topic.title;
-  els.referenceModalBody.innerHTML = topic.reference || "<p>Довідник для цієї теми відсутній.</p>";
-  els.referenceModal.classList.add("show");
+// ---------- ДОВІДНИК-АКОРДЕОН ----------
+function setupReferenceAccordion(topic){
+  els.referencePanelBody.innerHTML = topic.reference || "<p>Довідник для цієї теми відсутній.</p>";
+  els.referencePanel.classList.remove("open");
+  els.referenceToggle.setAttribute("aria-expanded", "false");
 }
-function closeReferenceModal(){
-  els.referenceModal.classList.remove("show");
-}
-els.closeReferenceBtn.addEventListener("click", closeReferenceModal);
-els.referenceModal.addEventListener("click", (e) => {
-  if(e.target === els.referenceModal) closeReferenceModal();
+
+els.referenceToggle.addEventListener("click", () => {
+  const isOpen = els.referencePanel.classList.contains("open");
+  els.referencePanel.classList.toggle("open", !isOpen);
+  els.referenceToggle.setAttribute("aria-expanded", String(!isOpen));
 });
 
 // ---------- РЕНДЕР: ТЕМА (теорія + питання, або режим перегляду) ----------
@@ -175,7 +182,7 @@ function openTopic(topicId){
   els.lessonTitle.textContent = topic.title;
   els.theoryBody.innerHTML = topic.theory;
 
-  els.openReferenceBtn.onclick = () => openReferenceModal(topic);
+  setupReferenceAccordion(topic);
 
   const alreadyDone = isTopicDone(topicId);
 
@@ -262,22 +269,39 @@ function renderQuestion(topic, qIdx){
 
   const optionsWrap = card.querySelector("#optionsWrap");
   const letters = ["А","Б","В","Г"];
-  let solved = false;
+  const key = topic.id + ":" + qIdx;
+  let solved = !!STATE.answeredCorrectly[key];
   const wrongChosen = new Set();
 
   q.options.forEach((optText, optIdx) => {
     const optBtn = document.createElement("button");
     optBtn.className = "option";
     optBtn.innerHTML = `<div class="opt-letter">${letters[optIdx]}</div><div>${optText}</div>`;
-    optBtn.addEventListener("click", () => {
-      if(solved) return;
-      handleAnswer(q, optIdx, optBtn, optionsWrap, () => {
-        solved = true;
-        showSolutionAndNext(topic, qIdx, q);
-      }, wrongChosen);
-    });
+    if(solved){
+      // Якщо вже розв'язано раніше (повернулись назад) — показуємо правильну відповідь одразу, без можливості клікати
+      optBtn.classList.add("disabled");
+      if(optIdx === q.correct) optBtn.classList.add("correct");
+    } else {
+      optBtn.addEventListener("click", () => {
+        if(solved) return;
+        handleAnswer(q, optIdx, optBtn, optionsWrap, () => {
+          solved = true;
+          STATE.answeredCorrectly[key] = true;
+          showSolutionAndFooter(topic, qIdx, q);
+        }, wrongChosen);
+      });
+    }
     optionsWrap.appendChild(optBtn);
   });
+
+  if(solved){
+    const solutionBox = document.getElementById("solutionBox");
+    solutionBox.className = "solution-box show";
+    solutionBox.innerHTML = `<strong>Розв'язок</strong>${q.solution}`;
+    buildFooter(topic, qIdx);
+  } else {
+    buildFooter(topic, qIdx, true); // лише кнопка "Назад" поки не розв'язано (якщо не перше питання)
+  }
 }
 
 function handleAnswer(q, optIdx, optBtn, optionsWrap, onSolved, wrongChosen){
@@ -294,26 +318,50 @@ function handleAnswer(q, optIdx, optBtn, optionsWrap, onSolved, wrongChosen){
     optBtn.classList.add("wrong");
     optBtn.classList.add("disabled");
     wrongChosen.add(optIdx);
-    const explainText = (q.explain && q.explain[optIdx]) ? q.explain[optIdx] : "Це неправильна відповідь. Подумай ще раз і спробуй іншу.";
+    const explainText = (q.explain && q.explain[optIdx]) ? q.explain[optIdx] : "Це неправильна відповідь.";
     feedbackBox.className = "feedback wrong-fb show";
-    feedbackBox.innerHTML = `<strong>Не зовсім так</strong>${explainText} Спробуй обрати іншу відповідь.`;
+    feedbackBox.innerHTML = `<strong>Не зовсім так</strong>${explainText} Перевір свої розрахунки.`;
   }
 }
 
-function showSolutionAndNext(topic, qIdx, q){
+function showSolutionAndFooter(topic, qIdx, q){
   const solutionBox = document.getElementById("solutionBox");
   solutionBox.className = "solution-box show";
   solutionBox.innerHTML = `<strong>Розв'язок</strong>${q.solution}`;
+  buildFooter(topic, qIdx);
+}
 
+// Будує футер з кнопками "Назад" (якщо можливо) і "Далі"/"Завершити" (якщо вже розв'язано)
+function buildFooter(topic, qIdx, onlyBack){
   const footer = document.getElementById("qFooter");
-  const isLast = qIdx === topic.questions.length - 1;
-  const btn = document.createElement("button");
-  btn.className = "btn btn-teal";
-  btn.textContent = isLast ? "Завершити тему →" : "Наступне питання →";
-  btn.addEventListener("click", () => {
-    renderQuestion(topic, qIdx + 1);
-  });
-  footer.appendChild(btn);
+  footer.innerHTML = "";
+
+  const leftSlot = document.createElement("div");
+  const rightSlot = document.createElement("div");
+
+  if(qIdx > 0){
+    const backBtn = document.createElement("button");
+    backBtn.className = "btn btn-ghost";
+    backBtn.textContent = "← Назад";
+    backBtn.addEventListener("click", () => {
+      renderQuestion(topic, qIdx - 1);
+    });
+    leftSlot.appendChild(backBtn);
+  }
+
+  if(!onlyBack){
+    const isLast = qIdx === topic.questions.length - 1;
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "btn btn-teal";
+    nextBtn.textContent = isLast ? "Завершити тему →" : "Наступне питання →";
+    nextBtn.addEventListener("click", () => {
+      renderQuestion(topic, qIdx + 1);
+    });
+    rightSlot.appendChild(nextBtn);
+  }
+
+  footer.appendChild(leftSlot);
+  footer.appendChild(rightSlot);
 }
 
 function renderTopicComplete(topic){
@@ -344,6 +392,23 @@ function renderTopicComplete(topic){
 // ---------- НАВІГАЦІЯ ----------
 els.backToDay.addEventListener("click", () => {
   openDay(STATE.currentDayIndex);
+});
+
+// ---------- ОЧИЩЕННЯ ПРОГРЕСУ ----------
+els.resetProgressBtn.addEventListener("click", () => {
+  els.resetConfirmModal.classList.add("show");
+});
+els.cancelResetBtn.addEventListener("click", () => {
+  els.resetConfirmModal.classList.remove("show");
+});
+els.resetConfirmModal.addEventListener("click", (e) => {
+  if(e.target === els.resetConfirmModal) els.resetConfirmModal.classList.remove("show");
+});
+els.confirmResetBtn.addEventListener("click", () => {
+  clearProgress();
+  els.resetConfirmModal.classList.remove("show");
+  renderRouteMap();
+  openDay(0);
 });
 
 // ---------- ІНІЦІАЛІЗАЦІЯ ----------
