@@ -186,6 +186,15 @@ function openTopic(topicId){
 
   const alreadyDone = isTopicDone(topicId);
 
+  // Якщо тема ще не завершена — завжди починаємо з чистого аркуша (Q1),
+  // незалежно від того, чи дитина раніше відповідала на щось у цій темі
+  // в межах поточної сесії (наприклад, вийшла на середині через "До списку тем").
+  if(!alreadyDone){
+    Object.keys(STATE.answeredCorrectly).forEach(key => {
+      if(key.startsWith(topicId + ":")) delete STATE.answeredCorrectly[key];
+    });
+  }
+
   if(alreadyDone){
     els.reviewBanner.style.display = "flex";
     els.quizProgressBar.style.display = "none";
